@@ -11,6 +11,8 @@ HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 HBITMAP bmp = NULL; // ensure initialized
+int x = 0;
+int y = 0;
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -57,7 +59,18 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     return (int)msg.wParam;
 }
 
+bool IsProgramOnPathW(const wchar_t* program, wchar_t* fullPath) {
+    DWORD result = SearchPath(
+        NULL,       // search in PATH
+        program,    // program to search
+        NULL,       // extension, optional
+        MAX_PATH,   // size of buffer
+        fullPath,   // buffer to receive full path
+        NULL        // optional file part
+    );
 
+    return (result > 0 && result < MAX_PATH);
+}
 
 //
 //  FUNCTION: MyRegisterClass()
@@ -133,12 +146,18 @@ void OpenPhoto(HWND hWnd)
     ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
 
     if (GetOpenFileName(&ofn) == TRUE) {
-        wchar_t* filename = ofn.lpstrFile;
-        wchar_t command[1024];
         wchar_t targetFile[260];
-        swprintf_s(targetFile, L"%s_converted.bmp", filename);
-        swprintf_s(command, L"magick \"%s\" -define bmp:format=bmp3 \"%s\"", filename, targetFile);
-        _wsystem(command);
+        wchar_t* filename = ofn.lpstrFile;
+        wchar_t fullPath[260];
+        if (IsProgramOnPathW(L"magick.exe", fullPath)) {
+            wchar_t command[1024];
+            swprintf_s(targetFile, L"%s_converted.bmp", filename);
+            swprintf_s(command, L"magick \"%s\" -define bmp:format=bmp3 \"%s\"", filename, targetFile);
+            _wsystem(command);
+        }
+        else {
+            swprintf_s(targetFile, L"%s", filename);
+        }
         if (bmp) {
             DeleteObject(bmp);
             bmp = NULL;
@@ -150,7 +169,6 @@ void OpenPhoto(HWND hWnd)
             swprintf_s(msg, L"Failed to load bitmap. GetLastError() = 0x%08X", err);
             MessageBoxW(hWnd, msg, L"LoadImage Failed", MB_OK | MB_ICONERROR);
         }
-        DeleteFile(targetFile);
         InvalidateRect(hWnd, NULL, TRUE);
     }
 }
@@ -200,13 +218,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             if (GetObject(bmp, sizeof(bm), &bm) != 0) {
                 HDC hdcMem = CreateCompatibleDC(hdc);
                 HBITMAP hOldBitmap = (HBITMAP)SelectObject(hdcMem, bmp);
-                // Draw the bitmap at top-left using its actual dimensions
-                BitBlt(hdc, 0, 0, bm.bmWidth, bm.bmHeight, hdcMem, 0, 0, SRCCOPY);
+                BitBlt(hdc, x, y, bm.bmWidth, bm.bmHeight, hdcMem, 0, 0, SRCCOPY);
                 SelectObject(hdcMem, hOldBitmap);
                 DeleteDC(hdcMem);
             }
         }
-
         EndPaint(hWnd, &ps);
     }
     break;
