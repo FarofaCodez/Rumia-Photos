@@ -15,6 +15,7 @@ HBITMAP bmp = NULL; // ensure initialized
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
+void OpenPhoto(HWND hWnd);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 
@@ -112,6 +113,48 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
     return TRUE;
 }
 
+void OpenPhoto(HWND hWnd)
+{
+    OPENFILENAME ofn;
+    wchar_t szFile[260];
+
+    ZeroMemory(&ofn, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = hWnd;
+    ofn.lpstrFile = szFile;
+
+    ofn.lpstrFile[0] = L'\0';
+    ofn.nMaxFile = _countof(szFile);
+    ofn.lpstrFilter = L"Images\0*.*\0\0";
+    ofn.nFilterIndex = 1;
+    ofn.lpstrFileTitle = NULL;
+    ofn.nMaxFileTitle = 0;
+    ofn.lpstrInitialDir = NULL;
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+
+    if (GetOpenFileName(&ofn) == TRUE) {
+        wchar_t* filename = ofn.lpstrFile;
+        wchar_t command[1024];
+        wchar_t targetFile[260];
+        swprintf_s(targetFile, L"%s_converted.bmp", filename);
+        swprintf_s(command, L"magick \"%s\" -define bmp:format=bmp3 \"%s\"", filename, targetFile);
+        _wsystem(command);
+        if (bmp) {
+            DeleteObject(bmp);
+            bmp = NULL;
+        }
+        bmp = (HBITMAP)LoadImageW(NULL, targetFile, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
+        if (!bmp) {
+            DWORD err = GetLastError();
+            wchar_t msg[512];
+            swprintf_s(msg, L"Failed to load bitmap. GetLastError() = 0x%08X", err);
+            MessageBoxW(hWnd, msg, L"LoadImage Failed", MB_OK | MB_ICONERROR);
+        }
+        DeleteFile(targetFile);
+        InvalidateRect(hWnd, NULL, TRUE);
+    }
+}
+
 //
 //  FUNCTION: WndProc(HWND, UINT, WPARAM, LPARAM)
 //
@@ -140,38 +183,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             break;
         case IDM_FILE_OPENPHOTO:
             {
-                OPENFILENAME ofn;
-                wchar_t szFile[260];
-
-                ZeroMemory(&ofn, sizeof(ofn));
-                ofn.lStructSize = sizeof(ofn);
-                ofn.hwndOwner = hWnd;
-                ofn.lpstrFile = szFile;
-
-                ofn.lpstrFile[0] = L'\0';
-                ofn.nMaxFile = _countof(szFile);
-                ofn.lpstrFilter = L"Bitmap Images\0*.bmp\0\0";
-                ofn.nFilterIndex = 1;
-                ofn.lpstrFileTitle = NULL;
-                ofn.nMaxFileTitle = 0;
-                ofn.lpstrInitialDir = NULL;
-                ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
-
-                if (GetOpenFileName(&ofn) == TRUE) {
-                    // Delete previous bitmap if any
-                    if (bmp) {
-                        DeleteObject(bmp);
-                        bmp = NULL;
-                    }
-                    bmp = (HBITMAP)LoadImageW(NULL, ofn.lpstrFile, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
-                    if (!bmp) {
-                        DWORD err = GetLastError();
-                        wchar_t msg[512];
-                        swprintf_s(msg, L"Failed to load bitmap. GetLastError() = 0x%08X", err);
-                        MessageBoxW(hWnd, msg, L"LoadImage Failed", MB_OK | MB_ICONERROR);
-                    }
-                    InvalidateRect(hWnd, NULL, TRUE);
-                }
+            OpenPhoto(hWnd);
             }
             break;
         default:
