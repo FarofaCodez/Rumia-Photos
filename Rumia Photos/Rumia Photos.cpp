@@ -126,6 +126,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
     return TRUE;
 }
 
+// Open a photo file and load it as a bitmap
 void OpenPhoto(HWND hWnd)
 {
     OPENFILENAME ofn;
@@ -173,6 +174,26 @@ void OpenPhoto(HWND hWnd)
     }
 }
 
+// Resize a bitmap and draw it to the destination device context
+void ResizeBitmap(HDC hdcDest, HBITMAP hBitmap, int destWidth, int destHeight) {
+    HDC hdcSrc = CreateCompatibleDC(hdcDest);
+    SelectObject(hdcSrc, hBitmap);
+    // Set high-quality stretch mode
+    SetStretchBltMode(hdcDest, HALFTONE);
+    // Get original bitmap dimensions
+    BITMAP bmp;
+    GetObject(hBitmap, sizeof(BITMAP), &bmp);
+    // Scale and draw the bitmap
+    StretchBlt(
+        hdcDest,
+        0, 0, destWidth, destHeight,
+        hdcSrc,
+        0, 0, bmp.bmWidth, bmp.bmHeight,
+        SRCCOPY
+    );
+    DeleteDC(hdcSrc);
+}
+
 //
 //  FUNCTION: WndProc(HWND, UINT, WPARAM, LPARAM)
 //
@@ -216,11 +237,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         if (bmp) {
             BITMAP bm;
             if (GetObject(bmp, sizeof(bm), &bm) != 0) {
-                HDC hdcMem = CreateCompatibleDC(hdc);
-                HBITMAP hOldBitmap = (HBITMAP)SelectObject(hdcMem, bmp);
-                BitBlt(hdc, x, y, bm.bmWidth, bm.bmHeight, hdcMem, 0, 0, SRCCOPY);
-                SelectObject(hdcMem, hOldBitmap);
-                DeleteDC(hdcMem);
+				ResizeBitmap(hdc, bmp, ps.rcPaint.right - ps.rcPaint.left, ps.rcPaint.bottom - ps.rcPaint.top);
             }
         }
         EndPaint(hWnd, &ps);
